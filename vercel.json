@@ -39,7 +39,7 @@
     }
   ],
   "env": {
-    "SCREENSHOTONE_ACCESS_KEY": "@screenshotone-access-key",
-    "SCREENSHOTONE_SECRET_KEY": "@screenshotone-secret-key"
+    "SCREENSHOTONE_ACCESS_KEY": "@SCREENSHOTONE_ACCESS_KEY",
+    "SCREENSHOTONE_SECRET_KEY": "@SCREENSHOTONE_SECRET_KEY"
   }
 }
