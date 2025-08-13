@@ -11,24 +11,16 @@
     {
       "src": "api/index.ts",
       "use": "@vercel/node"
-    },
-    {
-      "src": "api/thumbnails/[...path].ts",
-      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/thumbnails/(.*)",
-      "dest": "/api/thumbnails/[...path].ts",
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "public, max-age=86400"
-      }
-    },
-    {
       "src": "/api/(.*)",
       "dest": "/api/index.ts"
+    },
+    {
+      "src": "/thumbnails/(.*)",
+      "dest": "/api/thumbnails/$1"
     },
     {
       "src": "/wordpress-maintenance-worker.zip",
@@ -45,5 +37,9 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ]
+  ],
+  "env": {
+    "SCREENSHOTONE_ACCESS_KEY": "@screenshotone-access-key",
+    "SCREENSHOTONE_SECRET_KEY": "@screenshotone-secret-key"
+  }
 }

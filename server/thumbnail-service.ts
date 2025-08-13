@@ -2,7 +2,7 @@ import axios from 'axios';
 import { eq } from 'drizzle-orm';
 import { db } from './db.js';
 import { websites } from '../shared/schema.js';
-import dotenv from 'dotenv'
+import dotenv from 'dotenv';
 dotenv.config();
 
 export interface ThumbnailOptions {
@@ -21,27 +21,12 @@ export interface ThumbnailResult {
 }
 
 export class ThumbnailService {
-  private static readonly SCREENSHOTONE_ACCESS_KEY = process.env.SCREENSHOTONE_ACCESS_KEY || (() => {
-    console.log(`[Thumbnail] Current NODE_ENV: ${process.env.NODE_ENV}`);
-    console.log(`[Thumbnail] Available env vars: ${JSON.stringify(process.env, null, 2)}`);
-    
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('SCREENSHOTONE_ACCESS_KEY environment variable is required in production');
-    }
-    console.warn('⚠️  WARNING: Using fallback screenshot service key in development');
-    return 'hHY5I29lGy78hg'; // Fallback for dev
-  })();
-  private static readonly SCREENSHOTONE_SECRET_KEY = process.env.SCREENSHOTONE_SECRET_KEY || (() => {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('SCREENSHOTONE_SECRET_KEY environment variable is required in production');
-    }
-    return 'sf5Q_4W0wKVTDw'; // Fallback for dev
-  })();
+  private static readonly SCREENSHOTONE_ACCESS_KEY = process.env.SCREENSHOTONE_ACCESS_KEY;
+  private static readonly SCREENSHOTONE_SECRET_KEY = process.env.SCREENSHOTONE_SECRET_KEY;
   
   static async captureScreenshot(options: ThumbnailOptions): Promise<ThumbnailResult> {
     try {
       console.log(`[Thumbnail] Capturing screenshot for: ${options.url}`);
-      console.log(`[Thumbnail] Using access key: ${this.SCREENSHOTONE_ACCESS_KEY.substring(0, 4)}...`);
       
       // Clean and validate URL
       const cleanUrl = this.cleanUrl(options.url);
@@ -49,24 +34,37 @@ export class ThumbnailService {
         return { success: false, error: 'Invalid URL provided' };
       }
 
-      // Try ScreenshotOne API first, then fallback to alternative service
-      try {
-        const screenshotUrl = await this.captureWithScreenshotOne(cleanUrl, options);
-        return {
-          success: true,
-          thumbnailUrl: screenshotUrl
-        };
-      } catch (screenshotOneError) {
-        const errorMessage = screenshotOneError instanceof Error ? screenshotOneError.message : 'Unknown error';
-        console.warn('[Thumbnail] ScreenshotOne failed, using fallback:', errorMessage);
-        
-        // Fallback to URL2PNG
-        const fallbackUrl = this.generateThumbnailUrl(cleanUrl, options);
-        return {
-          success: true,
-          thumbnailUrl: fallbackUrl
-        };
+      // Try ScreenshotOne API first if we have credentials
+      if (this.SCREENSHOTONE_ACCESS_KEY) {
+        try {
+          const screenshotUrl = await this.captureWithScreenshotOne(cleanUrl, options);
+          return {
+            success: true,
+            thumbnailUrl: screenshotUrl
+          };
+        } catch (screenshotOneError) {
+          console.warn('[Thumbnail] ScreenshotOne failed, using fallback:', screenshotOneError);
+        }
       }
+
+      // Fallback to WebThumbnail API
+      try {
+        const webThumbnailUrl = await this.captureWithWebThumbnail(cleanUrl, options);
+        return {
+          success: true,
+          thumbnailUrl: webThumbnailUrl
+        };
+      } catch (webThumbnailError) {
+        console.warn('[Thumbnail] WebThumbnail failed:', webThumbnailError);
+      }
+
+      // Final fallback to URL2PNG (may not work in production)
+      const fallbackUrl = this.generateThumbnailUrl(cleanUrl, options);
+      return {
+        success: true,
+        thumbnailUrl: fallbackUrl
+      };
+
     } catch (error) {
       console.error('[Thumbnail] Error capturing screenshot:', error);
       return {
@@ -77,6 +75,10 @@ export class ThumbnailService {
   }
 
   private static async captureWithScreenshotOne(url: string, options: ThumbnailOptions): Promise<string> {
+    if (!this.SCREENSHOTONE_ACCESS_KEY) {
+      throw new Error('ScreenshotOne access key not configured');
+    }
+
     const params = new URLSearchParams({
       access_key: this.SCREENSHOTONE_ACCESS_KEY,
       url: url,
@@ -93,35 +95,27 @@ export class ThumbnailService {
 
     const screenshotUrl = `https://api.screenshotone.com/take?${params.toString()}`;
     
-    console.log(`[Thumbnail] Testing screenshot URL: ${screenshotUrl.substring(0, 100)}...`);
+    // Test if the URL is accessible
+    const response = await axios.get(screenshotUrl, { 
+      timeout: 15000,
+      responseType: 'arraybuffer',
+      validateStatus: (status) => status < 500
+    });
     
-    // Test if the URL is accessible by making a GET request to check for errors
-    try {
-      const response = await axios.get(screenshotUrl, { 
-        timeout: 15000,
-        responseType: 'arraybuffer',
-        validateStatus: (status) => status < 500 // Accept 4xx errors to see what's wrong
-      });
-      
-      console.log(`[Thumbnail] Screenshot API responded with status: ${response.status}`);
-      
-      if (response.status >= 400) {
-        const errorText = Buffer.from(response.data).toString();
-        console.error('[Thumbnail] API Error Response:', errorText);
-        throw new Error(`API returned ${response.status}: ${errorText}`);
-      }
-      
-      return screenshotUrl;
-    } catch (error) {
-      console.error('[Thumbnail] Screenshot API error details:', {
-        status: (error as any).response?.status,
-        statusText: (error as any).response?.statusText,
-        url: screenshotUrl,
-        errorMessage: (error as Error).message,
-        stack: (error as Error).stack
-      });
-      throw new Error(`Failed to capture screenshot: ${(error as any) instanceof Error ? (error as any).message : 'Unknown error'}`);
+    if (response.status >= 400) {
+      const errorText = Buffer.from(response.data).toString();
+      throw new Error(`API returned ${response.status}: ${errorText}`);
     }
+    
+    return screenshotUrl;
+  }
+
+  private static async captureWithWebThumbnail(url: string, options: ThumbnailOptions): Promise<string> {
+    const width = options.width || 1200;
+    const height = options.height || 800;
+    
+    // WebThumbnail is a more reliable alternative to URL2PNG
+    return `https://webthumbnail.org/api/?width=${width}&height=${height}&screen=1280&url=${encodeURIComponent(url)}`;
   }
 
   private static cleanUrl(url: string): string | null {
@@ -140,12 +134,9 @@ export class ThumbnailService {
   }
 
   private static generateThumbnailUrl(url: string, options: ThumbnailOptions): string {
-    // Use URL2PNG which is reliable and works well
-    const cleanUrl = url.replace(/^https?:\/\//, '');
+    // Fallback to URL2PNG (may not work in production)
     const width = options.width || 1200;
     const height = options.height || 800;
-    
-    // Use url2png.com API (has free tier)
     return `https://api.url2png.com/v6/P4DE4C-55D9C7/png/?thumbnail_max_width=${width}&thumbnail_max_height=${height}&url=${encodeURIComponent(url)}`;
   }
 
