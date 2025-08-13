@@ -37,9 +37,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "env": {
-    "SCREENSHOTONE_ACCESS_KEY": "@SCREENSHOTONE_ACCESS_KEY",
-    "SCREENSHOTONE_SECRET_KEY": "@SCREENSHOTONE_SECRET_KEY"
-  }
+  ]
 }
