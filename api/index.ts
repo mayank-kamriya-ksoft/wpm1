@@ -2089,6 +2089,10 @@ export default async function handler(req: any, res: any) {
           uptime: websites.uptime,
           connectionStatus: websites.connectionStatus,
           wpData: websites.wpData,
+          // Add these thumbnail-related fields
+          thumbnailUrl: websites.thumbnailUrl,
+          screenshotUrl: websites.screenshotUrl,
+          thumbnailLastUpdated: websites.thumbnailLastUpdated,
           createdAt: websites.createdAt,
           updatedAt: websites.updatedAt,
           clientId: websites.clientId,
@@ -2096,8 +2100,23 @@ export default async function handler(req: any, res: any) {
         .from(websites)
         .innerJoin(clients, eq(websites.clientId, clients.id))
         .where(eq(clients.userId, user.id));
-        
-        return res.status(200).json(websiteResults);
+
+        // Process thumbnail URLs for frontend
+        const processedResults = websiteResults.map(website => ({
+          ...website,
+          // Ensure thumbnail URL is properly formatted
+              thumbnailUrl: website.thumbnailUrl 
+                ? website.thumbnailUrl.startsWith('http') 
+                  ? website.thumbnailUrl 
+                  : `${process.env.BASE_URL || ''}${website.thumbnailUrl}`
+                : null,
+              // Parse wpData if it's a string
+              wpData: typeof website.wpData === 'string' 
+                ? JSON.parse(website.wpData) 
+                : website.wpData
+            }));
+
+            return res.status(200).json(processedResults);
       } catch (error) {
         console.error("Error fetching websites:", error);
         return res.status(500).json({ message: "Failed to fetch websites" });
