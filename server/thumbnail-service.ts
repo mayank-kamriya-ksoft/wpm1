@@ -2,6 +2,8 @@ import axios from 'axios';
 import { eq } from 'drizzle-orm';
 import { db } from './db.js';
 import { websites } from '../shared/schema.js';
+import dotenv from 'dotenv'
+dotenv.config();
 
 export interface ThumbnailOptions {
   url: string;
@@ -20,6 +22,9 @@ export interface ThumbnailResult {
 
 export class ThumbnailService {
   private static readonly SCREENSHOTONE_ACCESS_KEY = process.env.SCREENSHOTONE_ACCESS_KEY || (() => {
+    console.log(`[Thumbnail] Current NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`[Thumbnail] Available env vars: ${JSON.stringify(process.env, null, 2)}`);
+    
     if (process.env.NODE_ENV === 'production') {
       throw new Error('SCREENSHOTONE_ACCESS_KEY environment variable is required in production');
     }
@@ -36,6 +41,7 @@ export class ThumbnailService {
   static async captureScreenshot(options: ThumbnailOptions): Promise<ThumbnailResult> {
     try {
       console.log(`[Thumbnail] Capturing screenshot for: ${options.url}`);
+      console.log(`[Thumbnail] Using access key: ${this.SCREENSHOTONE_ACCESS_KEY.substring(0, 4)}...`);
       
       // Clean and validate URL
       const cleanUrl = this.cleanUrl(options.url);
@@ -110,7 +116,9 @@ export class ThumbnailService {
       console.error('[Thumbnail] Screenshot API error details:', {
         status: (error as any).response?.status,
         statusText: (error as any).response?.statusText,
-        url: screenshotUrl
+        url: screenshotUrl,
+        errorMessage: (error as Error).message,
+        stack: (error as Error).stack
       });
       throw new Error(`Failed to capture screenshot: ${(error as any) instanceof Error ? (error as any).message : 'Unknown error'}`);
     }
