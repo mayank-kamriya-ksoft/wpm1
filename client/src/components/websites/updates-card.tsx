@@ -18,6 +18,7 @@ import {
   ChevronDown,
   AlertTriangle
 } from "lucide-react";
+import { getPluginIdentifier } from "@/utils/pluginHelpers";
 
 interface UpdatesCardProps {
   websiteId: number;
@@ -804,7 +805,9 @@ export default function UpdatesCard({ websiteId }: UpdatesCardProps) {
                 variant="outline"
                 onClick={() => {
     console.log('PLUGIN OBJECT:', plugin);
-    updatePluginMutation.mutate(plugin.plugin_file || plugin.slug);
+    const pluginIdentifier = getPluginIdentifier(plugin);
+    console.log('Updating plugin with identifier:', pluginIdentifier);
+    updatePluginMutation.mutate(pluginIdentifier);
   }}
                 disabled={updatePluginMutation.isPending}
                 className="ml-2"
