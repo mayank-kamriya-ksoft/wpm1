@@ -104,18 +104,38 @@ export function WordPressHealthStatus({ websiteId }: WordPressHealthStatusProps)
     if (systemInfo && systemInfo.site_info) {
       // Production format
       const s = systemInfo.site_info;
+      const diskUsed = s.disk_usage?.used || 
+                      (s.disk_usage?.total && s.disk_usage?.free ? 
+                       `${(parseInt(s.disk_usage.total.replace(/[^\d]/g, '')) - 
+                          parseInt(s.disk_usage.free.replace(/[^\d]/g, '')))} GB` : '');
+                      
       systemInfo = {
         wordpress_version: s.wordpress_version,
         php_version: s.php_version,
         mysql_version: s.mysql_version,
         memory_limit: s.memory_limit,
-        max_execution_time: s.max_execution_time || '',
-        upload_max_filesize: s.upload_max_filesize || '',
-        disk_space_used: (s.disk_usage && (s.disk_usage.used || s.disk_usage.free || s.disk_usage.total)) || '',
-        disk_space_available: (s.disk_usage && (s.disk_usage.available || s.disk_usage.free)) || '',
-        server_software: s.server_software || '',
+        max_execution_time: s.max_execution_time || '30', // Default to 30s if not provided
+        upload_max_filesize: s.upload_max_filesize || '64M', // Default to 64M if not provided
+        disk_space_used: diskUsed,
+        disk_space_available: s.disk_usage?.available || s.disk_usage?.free || '',
+        disk_usage: { // Add disk_usage object for both formats
+          used: diskUsed,
+          available: s.disk_usage?.available || s.disk_usage?.free || '',
+          total: s.disk_usage?.total || ''
+        },
+        server_software: s.server_software || 'Unknown',
         site_url: s.url || '',
         admin_email: s.admin_email || '',
+      };
+    } else if (systemInfo) {
+      // Localhost format
+      systemInfo = {
+        ...systemInfo,
+        disk_usage: systemInfo.disk_usage || {
+          used: systemInfo.disk_space_used || '',
+          available: systemInfo.disk_space_available || '',
+          total: ''
+        }
       };
     }
     // --- PLUGIN DATA ---
