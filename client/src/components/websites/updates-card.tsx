@@ -185,10 +185,14 @@ export default function UpdatesCard({ websiteId }: UpdatesCardProps) {
   // Plugin update mutation
   const updatePluginMutation = useMutation({
     mutationFn: async (pluginPath: string) => {
-      return apiCall(`/api/websites/${websiteId}/update-plugin`, {
+      console.log('[Frontend]2 Initiating plugin update for:', pluginPath);
+
+      const response = apiCall(`/api/websites/${websiteId}/update-plugin`, {
         method: 'POST',
         body: JSON.stringify({ plugin: pluginPath }),
       });
+       console.log('[Frontend]2 Update response:', response);
+    return response;
     },
     onSuccess: (data, pluginPath) => {
       if (data.success) {
@@ -290,6 +294,7 @@ export default function UpdatesCard({ websiteId }: UpdatesCardProps) {
   // Theme update mutation
   const updateThemeMutation = useMutation({
     mutationFn: async (themeSlug: string) => {
+      console.log('themeSlug:',themeSlug)
       return apiCall(`/api/websites/${websiteId}/update-theme`, {
         method: 'POST',
         body: JSON.stringify({ theme: themeSlug }),
@@ -797,7 +802,10 @@ export default function UpdatesCard({ websiteId }: UpdatesCardProps) {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => updatePluginMutation.mutate(plugin.plugin || plugin.slug)}
+                onClick={() => {
+    console.log('PLUGIN OBJECT:', plugin);
+    updatePluginMutation.mutate(plugin.plugin || plugin.slug);
+  }}
                 disabled={updatePluginMutation.isPending}
                 className="ml-2"
               >
