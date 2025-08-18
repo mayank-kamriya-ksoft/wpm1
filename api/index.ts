@@ -518,61 +518,6 @@ const connectionConfig = {
 const client = postgres(DATABASE_URL, connectionConfig);
 const db = drizzle(client, { schema: { users, clients, websites, tasks, updateLogs, seoReports, securityScanHistory, linkScanHistory, clientReports, reportTemplates, performanceScans } });
 
-// Simple WordPress Remote Manager client for Vercel functions
-class VercelWPRemoteManagerClient {
-  private baseUrl: string;
-  private apiKey: string;
-
-  constructor(config: { url: string; apiKey: string }) {
-    this.baseUrl = config.url.replace(/\/$/, ''); // Remove trailing slash
-    this.apiKey = config.apiKey;
-  }
-
-  async getOptimizationData(): Promise<any> {
-    try {
-      console.log('[VERCEL-WRM] Attempting to fetch optimization data from:', `${this.baseUrl}/wp-json/wrm/v1/optimization/info`);
-      const response = await axios.post(`${this.baseUrl}/wp-json/wrm/v1/optimization/info`, {}, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 10000
-      });
-      console.log('[VERCEL-WRM] Successfully fetched optimization data from WordPress plugin');
-      return response.data;
-    } catch (error: any) {
-      console.log('[VERCEL-WRM] WordPress plugin optimization endpoint not available, generating realistic data');
-      console.log('[VERCEL-WRM] Error details:', error.code || error.message || 'Unknown error');
-      
-      // Return realistic optimization data that matches ManageWP style
-      const realisticData = {
-        postRevisions: {
-          count: Math.floor(Math.random() * 100) + 25, // 25-125 revisions
-          size: `${(Math.random() * 5 + 1).toFixed(1)} MB`
-        },
-        databaseSize: {
-          total: `${(Math.random() * 50 + 20).toFixed(1)} MB`,
-          tables: Math.floor(Math.random() * 50) + 15, // 15-65 tables
-          overhead: `${(Math.random() * 2).toFixed(1)} MB`
-        },
-        trashedContent: {
-          posts: Math.floor(Math.random() * 20) + 5,
-          comments: Math.floor(Math.random() * 50) + 10,
-          size: `${(Math.random() * 3 + 0.5).toFixed(1)} MB`
-        },
-        spam: {
-          comments: Math.floor(Math.random() * 100) + 20,
-          size: `${(Math.random() * 2 + 0.2).toFixed(1)} MB`
-        },
-        lastOptimized: Math.random() > 0.5 ? new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString() : null
-      };
-      
-      console.log('[VERCEL-WRM] Generated realistic optimization data:', JSON.stringify(realisticData, null, 2));
-      return realisticData;
-    }
-  }
-}
-
 // Auth schemas
 const registerSchema = z.object({
   email: z.string().email(),
@@ -6067,91 +6012,7 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // Website optimization data endpoint - NEW ENDPOINT
-    if (path.match(/^\/api\/websites\/\d+\/optimization-data$/) && req.method === 'GET') {
-      const websiteId = parseInt(path.split('/')[3]);
-      console.log('[VERCEL-OPTIMIZATION] Endpoint called for website:', websiteId);
-      
-      const user = authenticateToken(req);
-      if (!user) {
-        console.log('[VERCEL-OPTIMIZATION] Authentication failed');
-        return res.status(401).json({ message: 'Unauthorized' });
-      }
-      console.log('[VERCEL-OPTIMIZATION] User authenticated:', user.email);
-
-      try {
-        const website = await db.select({
-          id: websites.id,
-          name: websites.name,
-          url: websites.url,
-          wrmApiKey: websites.wrmApiKey,
-          clientId: websites.clientId
-        })
-        .from(websites)
-        .innerJoin(clients, eq(websites.clientId, clients.id))
-        .where(and(eq(websites.id, websiteId), eq(clients.userId, user.id)))
-        .limit(1);
-
-        if (website.length === 0) {
-          return res.status(404).json({ message: "Website not found" });
-        }
-
-        const siteData = website[0];
-        if (!siteData.wrmApiKey || !siteData.url) {
-          return res.json(null);
-        }
-
-        // Initialize WP Remote Manager client
-        const wpClient = new VercelWPRemoteManagerClient({
-          url: siteData.url,
-          apiKey: siteData.wrmApiKey
-        });
-
-        // Get optimization data from WordPress
-        console.log('[VERCEL-OPTIMIZATION] Fetching optimization data for website:', websiteId);
-        const optimizationData = await wpClient.getOptimizationData();
-        console.log('[VERCEL-OPTIMIZATION] Raw optimization data:', JSON.stringify(optimizationData, null, 2));
-        
-        if (optimizationData) {
-          // Transform WRM data to match frontend expectations
-          const transformedData = {
-            postRevisions: {
-              count: optimizationData.postRevisions?.count || 0,
-              size: optimizationData.postRevisions?.size || "0 MB",
-              lastCleanup: optimizationData.lastOptimized
-            },
-            databasePerformance: {
-              size: optimizationData.databaseSize?.total || "Unknown",
-              optimizationNeeded: optimizationData.databaseSize?.overhead !== "0 MB" && optimizationData.databaseSize?.overhead !== "0 B",
-              lastOptimization: optimizationData.lastOptimized,
-              tables: optimizationData.databaseSize?.tables || 0
-            },
-            trashedContent: {
-              posts: optimizationData.trashedContent?.posts || 0,
-              comments: optimizationData.trashedContent?.comments || 0,
-              size: optimizationData.trashedContent?.size || "0 MB"
-            },
-            spam: {
-              comments: optimizationData.spam?.comments || 0,
-              size: optimizationData.spam?.size || "0 MB"
-            }
-          };
-          console.log('[VERCEL-OPTIMIZATION] Transformed data:', JSON.stringify(transformedData, null, 2));
-          return res.json(transformedData);
-        } else {
-          console.log('[VERCEL-OPTIMIZATION] No optimization data available, returning null');
-          return res.json(null);
-        }
-      } catch (error) {
-        console.error("Error fetching optimization data:", error);
-        return res.status(500).json({
-          message: "Failed to fetch optimization data",
-          error: error instanceof Error ? error.message : "Unknown error"
-        });
-      }
-    }
-
-    // Website optimization data endpoint (legacy)
+    // Website optimization data endpoint
     if (path.match(/^\/api\/websites\/\d+\/optimization$/) && req.method === 'GET') {
       const websiteId = parseInt(path.split('/')[3]);
       const user = authenticateToken(req);
@@ -6160,17 +6021,9 @@ export default async function handler(req: any, res: any) {
       }
 
       try {
-        const website = await db.select({
-          id: websites.id,
-          name: websites.name,
-          url: websites.url,
-          wrmApiKey: websites.wrmApiKey,
-          clientId: websites.clientId
-        })
-        .from(websites)
-        .innerJoin(clients, eq(websites.clientId, clients.id))
-        .where(and(eq(websites.id, websiteId), eq(clients.userId, user.id)))
-        .limit(1);
+        const website = await db.select().from(websites).where(
+          and(eq(websites.id, websiteId), eq(websites.userId, user.id))
+        ).limit(1);
 
         if (website.length === 0) {
           return res.status(404).json({ message: "Website not found" });
@@ -6197,17 +6050,9 @@ export default async function handler(req: any, res: any) {
       }
 
       try {
-        const website = await db.select({
-          id: websites.id,
-          name: websites.name,
-          url: websites.url,
-          wrmApiKey: websites.wrmApiKey,
-          clientId: websites.clientId
-        })
-        .from(websites)
-        .innerJoin(clients, eq(websites.clientId, clients.id))
-        .where(and(eq(websites.id, websiteId), eq(clients.userId, user.id)))
-        .limit(1);
+        const website = await db.select().from(websites).where(
+          and(eq(websites.id, websiteId), eq(websites.userId, user.id))
+        ).limit(1);
 
         if (website.length === 0) {
           return res.status(404).json({ message: "Website not found" });
@@ -6238,17 +6083,9 @@ export default async function handler(req: any, res: any) {
       }
 
       try {
-        const website = await db.select({
-          id: websites.id,
-          name: websites.name,
-          url: websites.url,
-          wrmApiKey: websites.wrmApiKey,
-          clientId: websites.clientId
-        })
-        .from(websites)
-        .innerJoin(clients, eq(websites.clientId, clients.id))
-        .where(and(eq(websites.id, websiteId), eq(clients.userId, user.id)))
-        .limit(1);
+        const website = await db.select().from(websites).where(
+          and(eq(websites.id, websiteId), eq(websites.userId, user.id))
+        ).limit(1);
 
         if (website.length === 0) {
           return res.status(404).json({ message: "Website not found" });
@@ -6279,17 +6116,9 @@ export default async function handler(req: any, res: any) {
       }
 
       try {
-        const website = await db.select({
-          id: websites.id,
-          name: websites.name,
-          url: websites.url,
-          wrmApiKey: websites.wrmApiKey,
-          clientId: websites.clientId
-        })
-        .from(websites)
-        .innerJoin(clients, eq(websites.clientId, clients.id))
-        .where(and(eq(websites.id, websiteId), eq(clients.userId, user.id)))
-        .limit(1);
+        const website = await db.select().from(websites).where(
+          and(eq(websites.id, websiteId), eq(websites.userId, user.id))
+        ).limit(1);
 
         if (website.length === 0) {
           return res.status(404).json({ message: "Website not found" });
@@ -6451,7 +6280,6 @@ export default async function handler(req: any, res: any) {
         'POST /api/websites/auto-sync',
         'POST /api/websites/:id/sync',
         'POST /api/websites/:id/test-connection',
-        'GET /api/websites/:id/optimization-data',
         'GET /api/websites/:id/optimization',
         'POST /api/websites/:id/optimization/revisions',
         'POST /api/websites/:id/optimization/database',

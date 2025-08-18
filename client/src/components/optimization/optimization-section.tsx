@@ -159,21 +159,12 @@ export function OptimizationSection({ websiteId }: OptimizationSectionProps) {
 
   if (!optimizationData) {
     return (
-      <Card>
-        <CardHeader className="text-center pb-4">
-          <div className="flex items-center justify-center mb-4">
-            <Settings className="h-12 w-12 text-gray-400" />
-          </div>
-          <CardTitle className="text-lg font-medium text-gray-600 dark:text-gray-400">
-            Optimization Features Unavailable
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-center pb-8">
-          <p className="text-sm text-gray-500 dark:text-gray-500 max-w-md mx-auto">
-            Optimization features require an updated WordPress Remote Manager plugin
-          </p>
-        </CardContent>
-      </Card>
+      <Alert>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          Unable to load optimization data. Please check your WordPress connection.
+        </AlertDescription>
+      </Alert>
     );
   }
 

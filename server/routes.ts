@@ -2039,7 +2039,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Optimization endpoints
-  app.get("/api/websites/:id/optimization-data", authenticateToken, async (req, res) => {
+  app.get("/api/websites/:id/optimization", authenticateToken, async (req, res) => {
     try {
       const userId = (req as AuthRequest).user!.id;
       const websiteId = parseInt(req.params.id);
@@ -2061,39 +2061,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         // Get optimization data from WordPress
         const optimizationData = await wrmClient.getOptimizationData();
-        
-        if (optimizationData) {
-          // Transform WRM data to match frontend expectations
-          res.json({
-            postRevisions: {
-              count: optimizationData.postRevisions?.count || 0,
-              size: optimizationData.postRevisions?.size || "0 MB",
-              lastCleanup: optimizationData.lastOptimized
-            },
-            databasePerformance: {
-              size: optimizationData.databaseSize?.total || "Unknown",
-              optimizationNeeded: optimizationData.databaseSize?.overhead !== "0 MB" && optimizationData.databaseSize?.overhead !== "0 B",
-              lastOptimization: optimizationData.lastOptimized,
-              tables: optimizationData.databaseSize?.tables || 0
-            },
-            trashedContent: {
-              posts: optimizationData.trashedContent?.posts || 0,
-              comments: optimizationData.trashedContent?.comments || 0,
-              size: optimizationData.trashedContent?.size || "0 MB"
-            },
-            spam: {
-              comments: optimizationData.spam?.comments || 0,
-              size: optimizationData.spam?.size || "0 MB"
-            }
-          });
-        } else {
-          // Return null to indicate optimization features are not available
-          res.json(null);
-        }
+        res.json(optimizationData);
       } catch (error) {
-        console.error("Error calling WRM optimization endpoint:", error);
-        // Return null to indicate optimization features are not available
-        res.json(null);
+        // Return default structure if WRM doesn't have optimization endpoints yet
+        res.json({
+          postRevisions: {
+            count: 0,
+            size: "0 MB"
+          },
+          databaseSize: {
+            total: "Unknown",
+            tables: 0,
+            overhead: "0 B"
+          },
+          lastOptimized: null
+        });
       }
     } catch (error) {
       console.error("Error fetching optimization data:", error);
